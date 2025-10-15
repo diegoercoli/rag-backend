@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=78.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "RAG Benchmark Framework"
+authors = [
+    {name = "Diego Ercoli", email = "dercoli@sigmaspa.com"},
+]
+description = "Backend service used to store and retrieve RAG experiment results."
+readme = "README.md"
+requires-python = ">=3.13.5"
+keywords = ["RAG", "Benchmark", "Framework", "LLM"]
+license = "MIT"
+classifiers = [
+    # How mature is this project? Common values are
+    #   3 - Alpha
+    #   4 - Beta
+    #   5 - Production/Stable
+    'Development Status :: 3 - Alpha',
+
+    "Framework :: FastAPI",
+    # Indicate who your project is intended for
+    # 'Intended Audience :: Developers',
+    # 'Topic :: Software Development :: Build Tools',
+
+    # Specify the Python versions you support here. In particular, ensure
+    # that you indicate whether you support Python 2, Python 3 or both.
+    'Programming Language :: Python :: 3.13.5',
+]
+version = "1.32.5"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools]
+#packages = ["errorPredictionApp"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["config/*", "output/*"]
+
+[project.urls]
+#"Homepage" = "https://git.int.sigmaspa.com/xfsdev/aiem/django-ticket-prediction"
