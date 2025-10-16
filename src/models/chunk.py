@@ -17,5 +17,5 @@ class Chunk(Base):
     hierarchical_metadata_id = Column(Integer,
                                       ForeignKey('retrieval_framework.hierarchical_metadata.id', ondelete='SET NULL'))
 
-    hierarchical_metadata = relationship("HierarchicalMetadata", back_populates="chunks")
+    hierarchical_metadata = relationship("HierarchicalMetadata")#, back_populates="chunks")
     rankings = relationship("Ranking", back_populates="chunk")

@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,7 +8,7 @@ from src.database import get_db
 from src.models.configuration import Configuration
 from src.models.embedding import Embedding
 from src.schemas.configuration import ConfigurationCreate, ConfigurationResponse
-from src.schemas.embedding import EmbeddingResponse, EmbeddingCreate
+from src.schemas.embedding import EmbeddingResponse, EmbeddingCreate, EmbeddingUpdate
 
 router = APIRouter()
 
@@ -65,5 +65,27 @@ async def delete_embedding(
     
     await db.delete(embedding)
     await db.commit()
+
+@router.patch("/{embedding_id}", response_model=EmbeddingResponse)
+async def update_embedding(
+    embedding_id: int = Path(..., gt=0),
+    embedding_update: EmbeddingUpdate = ...,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update embedding by ID"""
+    result = await db.execute(
+        select(Embedding).where(Embedding.id == embedding_id)
+    )
+    embedding = result.scalar_one_or_none()
+    if not embedding:
+        raise HTTPException(status_code=404, detail="Embedding not found")
+
+    for field, value in embedding_update.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(embedding, field, value)
+
+    await db.commit()
+    await db.refresh(embedding)
+    return embedding
 
 # ============================================================================

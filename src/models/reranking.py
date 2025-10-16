@@ -16,4 +16,4 @@ class Reranking(Base):
     model_name = Column(String(255), unique=True, nullable=False)
     max_input_tokens = Column(Integer, nullable=False)
 
-    configurations = relationship("Configuration", back_populates="reranking")
+    #configurations = relationship("Configuration", back_populates="reranking")

@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 from src.database import get_db
-import src.models
 from src.models.experiment import Experiment
 from src.schemas.experiment import ExperimentCreate, ExperimentUpdate, ExperimentResponse
 

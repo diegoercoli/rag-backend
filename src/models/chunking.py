@@ -16,4 +16,4 @@ class Chunking(Base):
     num_tokens = Column(Integer, nullable=False)
     type = Column(Enum(ChunkingType, name="chunking_type", schema="retrieval_framework"), nullable=False)
 
-    configurations = relationship("Configuration", back_populates="chunking")
+    #configurations = relationship("Configuration", back_populates="chunking")

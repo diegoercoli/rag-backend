@@ -32,7 +32,7 @@ async def create_blacklist_chapter(
     db: AsyncSession = Depends(get_db)
 ):
     """Create blacklist chapter"""
-    db_chapter = BlacklistChapter(**chapter.dict())
+    db_chapter = BlacklistChapter(**chapter.model_dump())
     db.add(db_chapter)
     await db.commit()
     await db.refresh(db_chapter)

@@ -9,7 +9,7 @@ from src.models.configuration import Configuration
 from src.models.ranking import Ranking
 from src.schemas.configuration import ConfigurationCreate, ConfigurationResponse
 from src.schemas.ranking import RankingResponse
-from src.schemas.reranking import RankingCreate, RankingUpdate, RankingBulkCreate
+from src.schemas.ranking import RankingCreate, RankingUpdate, RankingBulkCreate
 
 router = APIRouter()
 

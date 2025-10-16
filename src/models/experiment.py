@@ -23,8 +23,8 @@ class Experiment(Base):
     vector_db_collection_id = Column(Integer,
                                      ForeignKey('retrieval_framework.vector_db_collection.id', ondelete='RESTRICT'))
 
-    configuration = relationship("Configuration", back_populates="experiments")
-    dataset = relationship("Dataset", back_populates="experiments")
+    configuration = relationship("Configuration")#, back_populates="experiments")
+    dataset = relationship("Dataset")#, back_populates="experiments")
     vector_db_collection = relationship("VectorDBCollection", back_populates="experiments")
     rankings = relationship("Ranking", back_populates="experiment")
     metrics = relationship("Metrics", back_populates="experiment")

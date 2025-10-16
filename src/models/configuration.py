@@ -23,12 +23,12 @@ class Configuration(Base):
     research_strategy_id = Column(Integer, ForeignKey('retrieval_framework.research_strategy.id', ondelete='RESTRICT'))
 
     embedding = relationship("Embedding")#, back_populates="configurations")
-    reranking = relationship("Reranking", back_populates="configurations")
-    chunking = relationship("Chunking", back_populates="configurations")
-    query_enhancement = relationship("QueryEnhancement", back_populates="configurations")
-    preprocessing = relationship("Preprocessing", back_populates="configurations")
-    research_strategy = relationship("ResearchStrategy", back_populates="configurations")
-    experiments = relationship("Experiment", back_populates="configuration")
+    reranking = relationship("Reranking")#, back_populates="configurations")
+    chunking = relationship("Chunking")#, back_populates="configurations")
+    query_enhancement = relationship("QueryEnhancement")#, back_populates="configurations")
+    preprocessing = relationship("Preprocessing")#, back_populates="configurations")
+    research_strategy = relationship("ResearchStrategy")#, back_populates="configurations")
+    #experiments = relationship("Experiment")#, back_populates="configuration")
     #blacklist = relationship("Blacklist", back_populates="configuration")
     # direct relationship to BlacklistChapter via association table
     blacklist_chapters = relationship(

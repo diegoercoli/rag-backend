@@ -16,5 +16,5 @@ class HierarchicalMetadata(Base):
     depth = Column(Integer)
     subsection_title = Column(Text)
 
-    chunks = relationship("Chunk", back_populates="hierarchical_metadata")
-    ground_truths = relationship("GroundTruth", back_populates="hierarchical_metadata")
+    #chunks = relationship("Chunk", back_populates="hierarchical_metadata")
+    #ground_truths = relationship("GroundTruth", back_populates="hierarchical_metadata")

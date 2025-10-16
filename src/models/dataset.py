@@ -16,5 +16,5 @@ class Dataset(Base):
     data_creation = Column(Date, nullable=False)
     data_update = Column(Date, nullable=True)
 
-    experiments = relationship("Experiment", back_populates="dataset")
+    #experiments = relationship("Experiment", back_populates="dataset")
     queries = relationship("Query", back_populates="dataset")

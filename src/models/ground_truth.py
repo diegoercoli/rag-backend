@@ -21,4 +21,4 @@ class GroundTruth(Base):
     confidence = Column(Enum(ConfidenceLevel, name="confidence_level", schema="retrieval_framework"), nullable=False)
 
     query = relationship("Query", back_populates="ground_truths")
-    hierarchical_metadata = relationship("HierarchicalMetadata", back_populates="ground_truths")
+    hierarchical_metadata = relationship("HierarchicalMetadata")#, back_populates="ground_truths")

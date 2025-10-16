@@ -17,4 +17,4 @@ class QueryEnhancement(Base):
     customer = Column(Boolean, nullable=False)
     device_mode = Column(Boolean, nullable=False)
 
-    configurations = relationship("Configuration", back_populates="query_enhancement")
+    #configurations = relationship("Configuration", back_populates="query_enhancement")

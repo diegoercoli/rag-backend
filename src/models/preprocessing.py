@@ -14,4 +14,4 @@ class Preprocessing(Base):
     id = Column(Integer, primary_key=True)
     lowercase = Column(Boolean, nullable=False)
 
-    configurations = relationship("Configuration", back_populates="preprocessing")
+    #configurations = relationship("Configuration", back_populates="preprocessing")
