@@ -1,8 +1,10 @@
+from datetime import date
+
 from fastapi import APIRouter
 
 from src.models.dataset import Dataset
 from src.models.query import Query
-from src.schemas.dataset import DatasetCreate, DatasetUpdate, DatasetResponse
+from src.schemas.dataset import DatasetCreate, DatasetUpdate, DatasetResponse, DatasetCreateResponse
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.schemas.query import QueryResponse
+from src.services.dataset_service import DatasetService
 
 router = APIRouter()
 
@@ -26,17 +29,99 @@ async def list_datasets(
     )
     return result.scalars().all()
 
-@router.post("/", response_model=DatasetResponse, status_code=201)
+
+@router.post("/", response_model=DatasetCreateResponse, status_code=201)
 async def create_dataset(
-    dataset: DatasetCreate,
-    db: AsyncSession = Depends(get_db)
+        dataset: DatasetCreate,
+        db: AsyncSession = Depends(get_db)
 ):
-    """Create a new dataset"""
-    db_dataset = Dataset(**dataset.dict())
-    db.add(db_dataset)
-    await db.commit()
-    await db.refresh(db_dataset)
-    return db_dataset
+    """
+    Create or update a dataset, optionally with queries and ground truths.
+
+    Backend automatically sets:
+    - data_creation: Set to current date for new datasets
+    - data_update: Set to current date when updating existing datasets
+
+    Simple usage (dataset only):
+        {
+            "dataset_name": "my_dataset"
+        }
+
+    Complex usage (with queries and ground truths):
+        {
+            "dataset_name": "my_dataset",
+            "queries": [
+                {
+                    "prompt": "How do I...",
+                    "device": "iPhone 14",
+                    "customer": "premium_user",
+                    "complexity": "Textual_Description",
+                    "ground_truths": [
+                        {
+                            "filename": "manual.pdf",
+                            "hierarchical_metadata": {
+                                "id_section": "3.2.1",
+                                "section_title": "Setup",
+                                "depth": 3
+                            },
+                            "confidence": "High"
+                        }
+                    ]
+                }
+            ]
+        }
+    """
+    try:
+        if not dataset.queries:
+            # Simple case: just create dataset
+            db_dataset = Dataset(
+                dataset_name=dataset.dataset_name,
+                data_creation=date.today(),
+                data_update=None
+            )
+            db.add(db_dataset)
+            await db.commit()
+            await db.refresh(db_dataset)
+
+            return DatasetCreateResponse(
+                id=db_dataset.id,
+                dataset_name=db_dataset.dataset_name,
+                data_creation=db_dataset.data_creation,
+                data_update=db_dataset.data_update
+            )
+        else:
+            # Complex case: create dataset with queries and ground truths
+            stats = await DatasetService.process_dataset_with_queries(
+                db=db,
+                dataset_name=dataset.dataset_name,
+                queries_input=dataset.queries
+            )
+
+            await db.commit()
+
+            # Fetch the created/updated dataset
+            result = await db.execute(
+                select(Dataset).where(Dataset.id == stats["dataset_id"])
+            )
+            db_dataset = result.scalar_one()
+
+            return DatasetCreateResponse(
+                id=db_dataset.id,
+                dataset_name=db_dataset.dataset_name,
+                data_creation=db_dataset.data_creation,
+                data_update=db_dataset.data_update,
+                queries_added=stats["queries_added"],
+                queries_updated=stats["queries_updated"],
+                queries_marked_obsolete=stats["queries_marked_obsolete"],
+                ground_truths_added=stats["ground_truths_added"]
+            )
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create dataset: {str(e)}"
+        )
+
 
 @router.get("/{dataset_id}", response_model=DatasetResponse)
 async def get_dataset(

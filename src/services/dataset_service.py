@@ -1,16 +1,15 @@
-# Business logic for dataset management
 from datetime import date
-from typing import List, Optional, Tuple, Dict
-from sqlalchemy import select
+from typing import List, Optional, Tuple, Dict, Set
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.dataset import Dataset
 from src.models.query import Query
 from src.models.ground_truth import GroundTruth
 from src.models.hierarchical_metadata import HierarchicalMetadata
-from src.schemas.dataset_queries import (
-    DatasetInput, QueryInput, GroundTruthInput,
-    HierarchicalMetadataInput
-)
+from src.models import ConfidenceLevel
+from src.schemas.ground_truth import GroundTruthInput
+from src.schemas.hierarchical_metadata import HierarchicalMetadataInput
+from src.schemas.query import QueryInput
 
 
 class DatasetService:
@@ -19,109 +18,225 @@ class DatasetService:
     @staticmethod
     async def get_or_create_dataset(
             db: AsyncSession,
-            dataset_input: DatasetInput
+            dataset_name: str
     ) -> Tuple[Dataset, bool]:
-        """
-        Get existing dataset by name or create new one
-
-        Args:
-            db: Database session
-            dataset_input: Dataset input data
-
-        Returns:
-            Tuple of (Dataset object, is_new boolean)
-        """
-        # Check if dataset exists
+        """Get existing dataset by name or create new one"""
         result = await db.execute(
-            select(Dataset).where(Dataset.dataset_name == dataset_input.dataset_name)
+            select(Dataset).where(Dataset.dataset_name == dataset_name)
         )
         existing_dataset = result.scalar_one_or_none()
 
         if existing_dataset:
-            # Update dataset if data_update is provided
-            if dataset_input.data_update:
-                existing_dataset.data_update = dataset_input.data_update
-                await db.flush()
             return existing_dataset, False
 
-        # Create new dataset
         new_dataset = Dataset(
-            dataset_name=dataset_input.dataset_name,
-            data_creation=dataset_input.data_creation or date.today(),
-            data_update=dataset_input.data_update
+            dataset_name=dataset_name,
+            data_creation=date.today(),
+            data_update=None
         )
         db.add(new_dataset)
-        await db.flush()  # Flush to get the ID
+        await db.flush()
         return new_dataset, True
 
     @staticmethod
-    async def find_matching_query(
+    async def update_dataset_timestamp(db: AsyncSession, dataset: Dataset) -> None:
+        """Update the dataset's data_update timestamp"""
+        dataset.data_update = date.today()
+        await db.flush()
+
+    @staticmethod
+    async def get_latest_query_version(
             db: AsyncSession,
-            dataset_id: int,
-            query_input: QueryInput
+            position_id: int,
+            dataset_id: int
     ) -> Optional[Query]:
-        """
-        Find existing query that matches the input query
-
-        Args:
-            db: Database session
-            dataset_id: Dataset ID to search within
-            query_input: Query input data
-
-        Returns:
-            Matching Query object or None
-        """
+        """Get the latest (highest version) of a query at a specific position"""
         result = await db.execute(
-            select(Query).where(
-                Query.dataset_id == dataset_id,
-                Query.prompt == query_input.prompt,
-                Query.obsolete == False  # Only match non-obsolete queries
+            select(Query)
+            .where(
+                and_(
+                    Query.position_id == position_id,
+                    Query.dataset_id == dataset_id
+                )
             )
+            .order_by(Query.version.desc())
+            .limit(1)
         )
         return result.scalar_one_or_none()
 
     @staticmethod
-    def has_query_changed(existing_query: Query, query_input: QueryInput) -> bool:
+    async def get_next_version(
+            db: AsyncSession,
+            position_id: int,
+            dataset_id: int
+    ) -> int:
+        """Get the next version number for a query"""
+        result = await db.execute(
+            select(func.max(Query.version))
+            .where(
+                and_(
+                    Query.position_id == position_id,
+                    Query.dataset_id == dataset_id
+                )
+            )
+        )
+        max_version = result.scalar()
+        return (max_version or 0) + 1
+
+    @staticmethod
+    def _create_ground_truth_signature(
+            filename: str,
+            confidence: ConfidenceLevel,
+            metadata_input: Optional[HierarchicalMetadataInput]
+    ) -> str:
         """
-        Check if query attributes have changed
+        Create a unique signature for a ground truth for comparison purposes
 
         Args:
+            filename: Ground truth filename
+            confidence: Confidence level
+            metadata_input: Hierarchical metadata input
+
+        Returns:
+            String signature representing the ground truth
+        """
+        if metadata_input:
+            return f"{filename}|{confidence.value}|{metadata_input.id_section}|{metadata_input.section_title}|{metadata_input.depth}"
+        return f"{filename}|{confidence.value}|None|None|None|None"
+
+    @staticmethod
+    def _create_ground_truth_signature_from_db(ground_truth: GroundTruth) -> str:
+        """
+        Create a unique signature for a ground truth from database object
+
+        Args:
+            ground_truth: GroundTruth database object
+
+        Returns:
+            String signature representing the ground truth
+        """
+        if ground_truth.hierarchical_metadata:
+            hm = ground_truth.hierarchical_metadata
+            return f"{ground_truth.filename}|{ground_truth.confidence.value}|{hm.id_section}|{hm.section_title}|{hm.depth}"
+        return f"{ground_truth.filename}|{ground_truth.confidence.value}|None|None|None"
+
+    @staticmethod
+    async def has_ground_truths_changed(
+            existing_query: Query,
+            ground_truths_input: List[GroundTruthInput]
+    ) -> bool:
+        """
+        Check if ground truths have changed
+
+        Args:
+            existing_query: Existing query from database (with ground_truths loaded)
+            ground_truths_input: New ground truth input data
+
+        Returns:
+            True if ground truths changed, False otherwise
+        """
+        # Create signatures for existing ground truths
+        existing_signatures: Set[str] = set()
+        for gt in existing_query.ground_truths:
+            signature = DatasetService._create_ground_truth_signature_from_db(gt)
+            existing_signatures.add(signature)
+
+        # Create signatures for new ground truths
+        new_signatures: Set[str] = set()
+        for gt_input in ground_truths_input:
+            signature = DatasetService._create_ground_truth_signature(
+                gt_input.filename,
+                gt_input.confidence,
+                gt_input.hierarchical_metadata
+            )
+            new_signatures.add(signature)
+
+        # Compare sets - if they're different, ground truths have changed
+        return existing_signatures != new_signatures
+
+    @staticmethod
+    async def has_query_changed(
+            db: AsyncSession,
+            existing_query: Query,
+            query_input: QueryInput
+    ) -> bool:
+        """
+        Check if query attributes or ground truths have changed
+
+        Args:
+            db: Database session
             existing_query: Existing query from database
             query_input: New query input data
 
         Returns:
-            True if attributes changed, False otherwise
+            True if attributes or ground truths changed, False otherwise
         """
-        return (
+        # Check if basic attributes changed
+        attributes_changed = (
+                existing_query.prompt != query_input.prompt or
                 existing_query.device != query_input.device or
                 existing_query.customer != query_input.customer or
                 existing_query.complexity.value != query_input.complexity.value
         )
+
+        if attributes_changed:
+            return True
+
+        # Check if ground truths changed
+        ground_truths_changed = await DatasetService.has_ground_truths_changed(
+            existing_query,
+            query_input.ground_truths
+        )
+
+        return ground_truths_changed
+
+    @staticmethod
+    async def create_or_find_ground_truth(
+            db: AsyncSession,
+            filename: str,
+            confidence: ConfidenceLevel,
+            metadata_id: Optional[int]
+    ) -> GroundTruth:
+        """Create or find existing ground truth by attributes"""
+        result = await db.execute(
+            select(GroundTruth).where(
+                and_(
+                    GroundTruth.filename == filename,
+                    GroundTruth.confidence == confidence,
+                    GroundTruth.hierarchical_metadata_id == metadata_id
+                )
+            )
+        )
+        existing_gt = result.scalar_one_or_none()
+
+        if existing_gt:
+            return existing_gt
+
+        new_gt = GroundTruth(
+            filename=filename,
+            confidence=confidence,
+            hierarchical_metadata_id=metadata_id
+        )
+        db.add(new_gt)
+        await db.flush()
+        return new_gt
 
     @staticmethod
     async def create_or_update_hierarchical_metadata(
             db: AsyncSession,
             metadata_input: Optional[HierarchicalMetadataInput]
     ) -> Optional[int]:
-        """
-        Create or find existing hierarchical metadata
-
-        Args:
-            db: Database session
-            metadata_input: Metadata input data
-
-        Returns:
-            Hierarchical metadata ID or None
-        """
+        """Create or find existing hierarchical metadata"""
         if not metadata_input:
             return None
 
-        # Try to find existing metadata with same attributes
         result = await db.execute(
             select(HierarchicalMetadata).where(
-                HierarchicalMetadata.id_section == metadata_input.id_section,
-                HierarchicalMetadata.section_title == metadata_input.section_title,
-                HierarchicalMetadata.depth == metadata_input.depth,
+                and_(
+                    HierarchicalMetadata.id_section == metadata_input.id_section,
+                    HierarchicalMetadata.section_title == metadata_input.section_title,
+                    HierarchicalMetadata.depth == metadata_input.depth,
+                )
             )
         )
         existing_metadata = result.scalar_one_or_none()
@@ -129,7 +244,6 @@ class DatasetService:
         if existing_metadata:
             return existing_metadata.id
 
-        # Create new metadata
         new_metadata = HierarchicalMetadata(
             id_section=metadata_input.id_section,
             section_title=metadata_input.section_title,
@@ -140,58 +254,49 @@ class DatasetService:
         return new_metadata.id
 
     @staticmethod
-    async def create_ground_truths(
+    async def associate_ground_truths_with_query(
             db: AsyncSession,
-            query_id: int,
-            ground_truths: List[GroundTruthInput]
+            query: Query,
+            ground_truths_input: List[GroundTruthInput]
     ) -> int:
-        """
-        Create ground truth entries for a query
-
-        Args:
-            db: Database session
-            query_id: Query ID to associate ground truths with
-            ground_truths: List of ground truth input data
-
-        Returns:
-            Number of ground truths created
-        """
+        """Associate ground truths with a query version"""
         count = 0
-        for gt_input in ground_truths:
-            # Create or get hierarchical metadata
+        for gt_input in ground_truths_input:
             metadata_id = await DatasetService.create_or_update_hierarchical_metadata(
                 db, gt_input.hierarchical_metadata
             )
 
-            # Create ground truth
-            ground_truth = GroundTruth(
+            ground_truth = await DatasetService.create_or_find_ground_truth(
+                db,
                 filename=gt_input.filename,
-                query_id=query_id,
-                hierarchical_metadata_id=metadata_id,
-                confidence=gt_input.confidence
+                confidence=gt_input.confidence,
+                metadata_id=metadata_id
             )
-            db.add(ground_truth)
-            count += 1
+
+            if ground_truth not in query.ground_truths:
+                query.ground_truths.append(ground_truth)
+                count += 1
 
         return count
 
     @staticmethod
-    async def process_bulk_dataset(
+    async def validate_query_ids(queries_input: List[QueryInput]) -> None:
+        """Validate that position IDs are unique"""
+        if not queries_input:
+            return
+
+        position_ids = [q.position_id for q in queries_input]
+
+        if len(position_ids) != len(set(position_ids)):
+            raise ValueError("Duplicate position IDs found in input")
+
+    @staticmethod
+    async def process_dataset_with_queries(
             db: AsyncSession,
-            dataset_input: DatasetInput,
+            dataset_name: str,
             queries_input: List[QueryInput]
     ) -> Dict[str, int]:
-        """
-        Process bulk dataset creation/update with queries and ground truths
-
-        Args:
-            db: Database session
-            dataset_input: Dataset input data
-            queries_input: List of query input data
-
-        Returns:
-            Dictionary with statistics about the operation
-        """
+        """Process dataset creation/update with queries and ground truths"""
         stats = {
             "dataset_id": 0,
             "queries_added": 0,
@@ -200,66 +305,90 @@ class DatasetService:
             "ground_truths_added": 0
         }
 
-        # Get or create dataset
-        dataset, is_new = await DatasetService.get_or_create_dataset(db, dataset_input)
+        await DatasetService.validate_query_ids(queries_input)
+
+        dataset, is_new = await DatasetService.get_or_create_dataset(db, dataset_name)
         stats["dataset_id"] = dataset.id
 
-        # Process each query
-        for query_input in queries_input:
-            # Check if query already exists
-            existing_query = await DatasetService.find_matching_query(
-                db, dataset.id, query_input
-            )
+        dataset_modified = False
 
-            if existing_query:
-                # Check if attributes changed
-                if DatasetService.has_query_changed(existing_query, query_input):
-                    # Mark existing query as obsolete
-                    existing_query.obsolete = True
+        for query_input in queries_input:
+            # Get latest query version with ground truths eagerly loaded
+            result = await db.execute(
+                select(Query)
+                .where(
+                    and_(
+                        Query.position_id == query_input.position_id,
+                        Query.dataset_id == dataset.id
+                    )
+                )
+                .order_by(Query.version.desc())
+                .limit(1)
+            )
+            latest_query = result.scalar_one_or_none()
+
+            if latest_query:
+                # Eagerly load ground truths and their metadata for comparison
+                await db.refresh(latest_query, ['ground_truths'])
+                for gt in latest_query.ground_truths:
+                    await db.refresh(gt, ['hierarchical_metadata'])
+
+                # Check if query or ground truths changed
+                if await DatasetService.has_query_changed(db, latest_query, query_input):
+                    # Mark old version as obsolete
+                    latest_query.obsolete = True
                     stats["queries_marked_obsolete"] += 1
 
-                    # Create new query with updated attributes
+                    # Create new version
+                    next_version = await DatasetService.get_next_version(
+                        db, query_input.position_id, dataset.id
+                    )
+
                     new_query = Query(
+                        position_id=query_input.position_id,
+                        dataset_id=dataset.id,
+                        version=next_version,
                         prompt=query_input.prompt,
                         device=query_input.device,
                         customer=query_input.customer,
                         complexity=query_input.complexity,
-                        obsolete=False,
-                        dataset_id=dataset.id
+                        obsolete=False
                     )
                     db.add(new_query)
                     await db.flush()
 
-                    # Create ground truths for new query
-                    gt_count = await DatasetService.create_ground_truths(
-                        db, new_query.id, query_input.ground_truths
+                    gt_count = await DatasetService.associate_ground_truths_with_query(
+                        db, new_query, query_input.ground_truths
                     )
                     stats["ground_truths_added"] += gt_count
                     stats["queries_updated"] += 1
+                    dataset_modified = True
                 else:
-                    # Query hasn't changed, just add any new ground truths
-                    gt_count = await DatasetService.create_ground_truths(
-                        db, existing_query.id, query_input.ground_truths
-                    )
-                    stats["ground_truths_added"] += gt_count
+                    # Query and ground truths haven't changed - do nothing
+                    pass
             else:
-                # Create new query
+                # Create first version
                 new_query = Query(
+                    position_id=query_input.position_id,
+                    dataset_id=dataset.id,
+                    version=1,
                     prompt=query_input.prompt,
                     device=query_input.device,
                     customer=query_input.customer,
                     complexity=query_input.complexity,
-                    obsolete=query_input.obsolete,
-                    dataset_id=dataset.id
+                    obsolete=False
                 )
                 db.add(new_query)
                 await db.flush()
 
-                # Create ground truths
-                gt_count = await DatasetService.create_ground_truths(
-                    db, new_query.id, query_input.ground_truths
+                gt_count = await DatasetService.associate_ground_truths_with_query(
+                    db, new_query, query_input.ground_truths
                 )
                 stats["ground_truths_added"] += gt_count
                 stats["queries_added"] += 1
+                dataset_modified = True
+
+        if dataset_modified:
+            await DatasetService.update_dataset_timestamp(db, dataset)
 
         return stats
