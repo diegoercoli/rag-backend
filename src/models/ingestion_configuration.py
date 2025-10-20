@@ -1,7 +1,21 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Table
 from sqlalchemy.orm import relationship
 from src.database import Base
 
+
+# --- Association Table (now pointing to ingestion_configuration instead of configuration) ---
+blacklist_association = Table(
+    "blacklist",
+    Base.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("ingestion_configuration_id", Integer,
+           ForeignKey("retrieval_framework.ingestion_configuration.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("blacklist_chapter_id", Integer,
+           ForeignKey("retrieval_framework.blacklist_chapter.id", ondelete="CASCADE"),
+           nullable=False),
+    schema="retrieval_framework"
+)
 
 class IngestionConfiguration(Base):
     __tablename__ = "ingestion_configuration"

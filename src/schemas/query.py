@@ -11,7 +11,8 @@ class QueryBase(BaseModel):
     customer: Optional[str] = None
     dataset_id: Optional[int] = None
     complexity: ComplexityQuery
-    obsolete: bool = False
+    obsolete: bool = Field(default=False)  # Explicit default with Field
+
 
 
 class QueryCreate(QueryBase):
