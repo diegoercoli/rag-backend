@@ -1,19 +1,9 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Enum, Table
+from sqlalchemy import Column, Integer, String, ForeignKey, Enum, Table, DateTime, func
 from sqlalchemy.orm import relationship
 from src.database import Base
 from src.models import ConfidenceLevel
 from src.models.enums import ConfidenceLevelType
 
-# Association table for N:N relationship (now much simpler!)
-query_ground_truth_association = Table(
-    'query_ground_truth',
-    Base.metadata,
-    Column('query_id', Integer, ForeignKey('retrieval_framework.query.id', ondelete='CASCADE'),
-           nullable=False, primary_key=True),
-    Column('ground_truth_id', Integer, ForeignKey('retrieval_framework.ground_truth.id', ondelete='CASCADE'),
-           nullable=False, primary_key=True),
-    schema='retrieval_framework'
-)
 
 
 class GroundTruth(Base):
@@ -28,12 +18,15 @@ class GroundTruth(Base):
     )
     confidence = Column(ConfidenceLevelType(), nullable=False)  # ← Use custom type
 
+    # Add these if missing:
+    #query_id = Column(Integer, ForeignKey('retrieval_framework.query.id'))
+   # created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     hierarchical_metadata = relationship("HierarchicalMetadata")
 
     # N:N relationship with Query
-    queries = relationship(
-        "Query",
-        secondary="retrieval_framework.query_ground_truth",
-        back_populates="ground_truths"
-    )
+ #   queries = relationship(
+ #       "Query",
+ #       secondary="retrieval_framework.query_ground_truth"#,
+       # back_populates="ground_truths"
+#    )

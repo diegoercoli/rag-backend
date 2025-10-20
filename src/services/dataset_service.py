@@ -104,7 +104,7 @@ class DatasetService:
         """
         if metadata_input:
             return f"{filename}|{confidence.value}|{metadata_input.id_section}|{metadata_input.section_title}|{metadata_input.depth}"
-        return f"{filename}|{confidence.value}|None|None|None|None"
+        return f"{filename}|{confidence.value}|None|None|None"
 
     @staticmethod
     def _create_ground_truth_signature_from_db(ground_truth: GroundTruth) -> str:
@@ -117,18 +117,23 @@ class DatasetService:
         Returns:
             String signature representing the ground truth
         """
+        # Handle the confidence value properly
+        confidence_value = ground_truth.confidence.value if isinstance(ground_truth.confidence,
+                                                                       ConfidenceLevel) else str(
+            ground_truth.confidence)
+
         if ground_truth.hierarchical_metadata:
             hm = ground_truth.hierarchical_metadata
-            return f"{ground_truth.filename}|{ground_truth.confidence.value}|{hm.id_section}|{hm.section_title}|{hm.depth}"
-        return f"{ground_truth.filename}|{ground_truth.confidence.value}|None|None|None"
+            return f"{ground_truth.filename}|{confidence_value}|{hm.id_section}|{hm.section_title}|{hm.depth}"
+        return f"{ground_truth.filename}|{confidence_value}|None|None|None"
 
     @staticmethod
-    async def has_ground_truths_changed(
+    def has_ground_truths_changed(
             existing_query: Query,
             ground_truths_input: List[GroundTruthInput]
     ) -> bool:
         """
-        Check if ground truths have changed
+        Check if ground truths have changed (synchronous function)
 
         Args:
             existing_query: Existing query from database (with ground_truths loaded)
@@ -157,16 +162,14 @@ class DatasetService:
         return existing_signatures != new_signatures
 
     @staticmethod
-    async def has_query_changed(
-            db: AsyncSession,
+    def has_query_changed(
             existing_query: Query,
             query_input: QueryInput
     ) -> bool:
         """
-        Check if query attributes or ground truths have changed
+        Check if query attributes or ground truths have changed (synchronous function)
 
         Args:
-            db: Database session
             existing_query: Existing query from database
             query_input: New query input data
 
@@ -185,7 +188,7 @@ class DatasetService:
             return True
 
         # Check if ground truths changed
-        ground_truths_changed = await DatasetService.has_ground_truths_changed(
+        ground_truths_changed = DatasetService.has_ground_truths_changed(
             existing_query,
             query_input.ground_truths
         )
@@ -232,14 +235,26 @@ class DatasetService:
         if not metadata_input:
             return None
 
+        # Handle comparison with None values properly
+        query_conditions = []
+
+        if metadata_input.id_section is not None:
+            query_conditions.append(HierarchicalMetadata.id_section == metadata_input.id_section)
+        else:
+            query_conditions.append(HierarchicalMetadata.id_section.is_(None))
+
+        if metadata_input.section_title is not None:
+            query_conditions.append(HierarchicalMetadata.section_title == metadata_input.section_title)
+        else:
+            query_conditions.append(HierarchicalMetadata.section_title.is_(None))
+
+        if metadata_input.depth is not None:
+            query_conditions.append(HierarchicalMetadata.depth == metadata_input.depth)
+        else:
+            query_conditions.append(HierarchicalMetadata.depth.is_(None))
+
         result = await db.execute(
-            select(HierarchicalMetadata).where(
-                and_(
-                    HierarchicalMetadata.id_section == metadata_input.id_section,
-                    HierarchicalMetadata.section_title == metadata_input.section_title,
-                    HierarchicalMetadata.depth == metadata_input.depth,
-                )
-            )
+            select(HierarchicalMetadata).where(and_(*query_conditions))
         )
         existing_metadata = result.scalar_one_or_none()
 
@@ -263,6 +278,19 @@ class DatasetService:
     ) -> int:
         """Associate ground truths with a query version"""
         count = 0
+
+        # First, we need to get the query with its ground_truths relationship loaded
+        # This is CRITICAL to avoid lazy loading issues
+        result = await db.execute(
+            select(Query)
+            .options(selectinload(Query.ground_truths))
+            .where(Query.id == query.id)
+        )
+        query_with_gts = result.scalar_one()
+
+        # Get existing ground truth IDs to check for duplicates
+        existing_gt_ids = {gt.id for gt in query_with_gts.ground_truths}
+
         for gt_input in ground_truths_input:
             metadata_id = await DatasetService.create_or_update_hierarchical_metadata(
                 db, gt_input.hierarchical_metadata
@@ -275,10 +303,13 @@ class DatasetService:
                 metadata_id=metadata_id
             )
 
-            if ground_truth not in query.ground_truths:
-                query.ground_truths.append(ground_truth)
+            # Check if this ground truth is already associated
+            if ground_truth.id not in existing_gt_ids:
+                query_with_gts.ground_truths.append(ground_truth)
+                existing_gt_ids.add(ground_truth.id)
                 count += 1
 
+        await db.flush()
         return count
 
     @staticmethod
@@ -315,7 +346,7 @@ class DatasetService:
         dataset_modified = False
 
         for query_input in queries_input:
-            # Get latest query version with ground truths eagerly loaded using selectinload
+            # Get latest query version with ground truths eagerly loaded
             result = await db.execute(
                 select(Query)
                 .options(
@@ -333,9 +364,8 @@ class DatasetService:
             latest_query = result.scalar_one_or_none()
 
             if latest_query:
-                # No need to refresh - relationships are already loaded
                 # Check if query or ground truths changed
-                if await DatasetService.has_query_changed(db, latest_query, query_input):
+                if DatasetService.has_query_changed(latest_query, query_input):
                     # Mark old version as obsolete
                     latest_query.obsolete = True
                     stats["queries_marked_obsolete"] += 1
@@ -356,7 +386,7 @@ class DatasetService:
                         obsolete=False
                     )
                     db.add(new_query)
-                    await db.flush()
+                    await db.flush()  # Flush to get the ID
 
                     gt_count = await DatasetService.associate_ground_truths_with_query(
                         db, new_query, query_input.ground_truths
@@ -380,7 +410,7 @@ class DatasetService:
                     obsolete=False
                 )
                 db.add(new_query)
-                await db.flush()
+                await db.flush()  # Flush to get the ID
 
                 gt_count = await DatasetService.associate_ground_truths_with_query(
                     db, new_query, query_input.ground_truths
@@ -392,4 +422,5 @@ class DatasetService:
         if dataset_modified:
             await DatasetService.update_dataset_timestamp(db, dataset)
 
+        await db.flush()
         return stats

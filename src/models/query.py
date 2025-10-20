@@ -1,11 +1,23 @@
 from sqlalchemy import (
     Column, Integer, String, Boolean, Text, ForeignKey, Enum,
-    UniqueConstraint, Index, DateTime
+    UniqueConstraint, Index, DateTime, Table
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.database import Base
 from src.models import ComplexityQuery
+from src.models.enums import ComplexityQueryType
+
+# Association table for N:N relationship (now much simpler!)
+query_ground_truth_association = Table(
+    'query_ground_truth',
+    Base.metadata,
+    Column('query_id', Integer, ForeignKey('retrieval_framework.query.id', ondelete='CASCADE'),
+           nullable=False, primary_key=True),
+    Column('ground_truth_id', Integer, ForeignKey('retrieval_framework.ground_truth.id', ondelete='CASCADE'),
+           nullable=False, primary_key=True),
+    schema='retrieval_framework'
+)
 
 
 class Query(Base):
@@ -35,10 +47,10 @@ class Query(Base):
     device = Column(String(255))
     customer = Column(String(255))
     obsolete = Column(Boolean, nullable=False, default=False)
-    complexity = Column(
-        Enum(ComplexityQuery, name="complexity_query", schema="retrieval_framework"),
-        nullable=False
-    )
+    complexity = Column(ComplexityQueryType(), nullable=False)
+   #     Enum(ComplexityQuery, name="complexity_query", schema="retrieval_framework"),
+   #     nullable=False
+   # )
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     # Relationships (now much simpler!)
@@ -49,6 +61,8 @@ class Query(Base):
     # N:N relationship with GroundTruth
     ground_truths = relationship(
         "GroundTruth",
-        secondary="retrieval_framework.query_ground_truth",
-        back_populates="queries"
+        secondary="retrieval_framework.query_ground_truth"#,
+      #  back_populates="queries"
     )
+
+

@@ -69,12 +69,48 @@ class ComplexityQuery(str, enum.Enum):
     IMAGE_ANALYSIS = "Image_Analysis"
     TABLE_ANALYSIS = "Table_Analysis"
     REASONING = "Reasoning"
-    ''''
-    Textual_Description = enum.auto(), # = "Textual_Description"
-    Image_Analysis = enum.auto(),
-    Table_Analysis = enum.auto(),
-    Reasoning = enum.auto()
-    '''
+
+class ComplexityQueryType(TypeDecorator):
+        """
+        Custom SQLAlchemy type for ComplexityQuery enum that properly handles
+        PostgreSQL native enum type while using Python enum values.
+        """
+        impl = PG_ENUM(
+            'Textual_Description', 'Image_Analysis', 'Table_Analysis', 'Reasoning',
+            name='complexity_query',
+            schema='retrieval_framework',
+            create_type=False  # Don't try to create the type, it already exists
+        )
+        cache_ok = True
+
+        def process_bind_param(self, value, dialect):
+            """Convert Python value to database value"""
+            if value is None:
+                return None
+            if isinstance(value, ComplexityQuery):
+                return value.value  # Return 'Textual_Description', 'Image_Analysis', etc.
+            if isinstance(value, str):
+                # Validate it's a valid value
+                try:
+                    ComplexityQuery(value)
+                    return value
+                except ValueError:
+                    # Maybe it's the enum name? Try to convert
+                    try:
+                        return ComplexityQuery[value.upper()].value
+                    except KeyError:
+                        raise ValueError(f"Invalid complexity query: {value}")
+            raise ValueError(f"Invalid complexity type: {type(value)}")
+
+        def process_result_value(self, value, dialect):
+            """Convert database value to Python value"""
+            if value is None:
+                return None
+            return ComplexityQuery(value)
+
+        @property
+        def python_type(self):
+            return ComplexityQuery
 
 class ExperimentStatus(str, enum.Enum):
     NOT_STARTED = "NOT_STARTED"
