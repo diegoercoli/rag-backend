@@ -17,4 +17,5 @@ class Dataset(Base):
     data_update = Column(Date, nullable=True)
 
     #experiments = relationship("Experiment", back_populates="dataset")
-    queries = relationship("Query", back_populates="dataset")
+    queries = relationship("Query", back_populates="dataset",  cascade="all, delete-orphan"  # This ensures queries are deleted when dataset is deleted
+    )
