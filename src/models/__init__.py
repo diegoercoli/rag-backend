@@ -3,7 +3,8 @@
 from src.database import Base
 from src.models.blacklist import BlacklistChapter
 from src.models.embedding import Embedding
-from src.models.enums import ChunkingType, ConfidenceLevel, ResearchType, ComplexityQuery, ExperimentStatus
+from src.models.enums import ChunkingType, ConfidenceLevel, ResearchType, ComplexityQuery, ExperimentStatus, \
+    ConfidenceLevelType
 from src.models.ingestion_configuration import IngestionConfiguration
 from src.models.reranking import Reranking
 from src.models.chunking import Chunking
@@ -29,6 +30,7 @@ __all__ = [
     'Base',
     'ResearchType',
     'ConfidenceLevel',
+    'ConfidenceLevelType',
     'ChunkingType',
     'ComplexityQuery',
     'ExperimentStatus',

@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, Enum, Table
 from sqlalchemy.orm import relationship
 from src.database import Base
 from src.models import ConfidenceLevel
+from src.models.enums import ConfidenceLevelType
 
 # Association table for N:N relationship (now much simpler!)
 query_ground_truth_association = Table(
@@ -25,10 +26,8 @@ class GroundTruth(Base):
         Integer,
         ForeignKey('retrieval_framework.hierarchical_metadata.id', ondelete='SET NULL')
     )
-    confidence = Column(
-        Enum(ConfidenceLevel, name="confidence_level", schema="retrieval_framework"),
-        nullable=False
-    )
+    confidence = Column(ConfidenceLevelType(), nullable=False)  # ← Use custom type
+
 
     hierarchical_metadata = relationship("HierarchicalMetadata")
 

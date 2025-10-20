@@ -2,6 +2,8 @@ from datetime import date
 from typing import List, Optional, Tuple, Dict, Set
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from src.models.dataset import Dataset
 from src.models.query import Query
 from src.models.ground_truth import GroundTruth
@@ -313,9 +315,12 @@ class DatasetService:
         dataset_modified = False
 
         for query_input in queries_input:
-            # Get latest query version with ground truths eagerly loaded
+            # Get latest query version with ground truths eagerly loaded using selectinload
             result = await db.execute(
                 select(Query)
+                .options(
+                    selectinload(Query.ground_truths).selectinload(GroundTruth.hierarchical_metadata)
+                )
                 .where(
                     and_(
                         Query.position_id == query_input.position_id,
@@ -328,11 +333,7 @@ class DatasetService:
             latest_query = result.scalar_one_or_none()
 
             if latest_query:
-                # Eagerly load ground truths and their metadata for comparison
-                await db.refresh(latest_query, ['ground_truths'])
-                for gt in latest_query.ground_truths:
-                    await db.refresh(gt, ['hierarchical_metadata'])
-
+                # No need to refresh - relationships are already loaded
                 # Check if query or ground truths changed
                 if await DatasetService.has_query_changed(db, latest_query, query_input):
                     # Mark old version as obsolete
