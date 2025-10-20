@@ -54,7 +54,11 @@ class Query(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     # Relationships (now much simpler!)
-    dataset = relationship("Dataset", back_populates="queries")
+    # Relationships - Add cascade to dataset relationship
+    dataset = relationship(
+        "Dataset",
+        back_populates="queries"
+    )
     rankings = relationship("Ranking", back_populates="query", cascade="all, delete-orphan")
     metrics = relationship("Metrics", back_populates="query", cascade="all, delete-orphan")
 

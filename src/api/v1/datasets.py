@@ -2,6 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter
 
+from src.models import GroundTruth
 from src.models.dataset import Dataset
 from src.models.query import Query
 from src.schemas.dataset import DatasetCreate, DatasetUpdate, DatasetResponse, DatasetCreateResponse
@@ -224,10 +225,12 @@ async def get_dataset_queries(
 
     query = (
         select(Query)
-        .options(selectinload(Query.ground_truths))  # Eager load ground-truths
+        .options(
+            selectinload(Query.ground_truths)
+            .selectinload(GroundTruth.hierarchical_metadata)  # Eager load hierarchical metadata
+        )
         .where(Query.dataset_id == dataset_id)
     )
-
     if obsolete is not None:
         query = query.where(Query.obsolete == obsolete)
 

@@ -1,11 +1,7 @@
-# ============================================================================
-# src/schemas/query.py
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
-from src.models.enums import ComplexityQuery
-from src.schemas.ground_truth import GroundTruthResponse
-
+from src.models import ComplexityQuery
 
 
 class QueryBase(BaseModel):
@@ -17,10 +13,6 @@ class QueryBase(BaseModel):
     complexity: ComplexityQuery
     obsolete: bool = Field(default=False)
 
-    class Config:
-        from_attributes = True
-        use_enum_values = False
-
 
 class QueryInput(BaseModel):
     """Schema for query input with nested ground truths (for dataset creation)"""
@@ -30,25 +22,6 @@ class QueryInput(BaseModel):
     customer: Optional[str] = None
     complexity: ComplexityQuery
     ground_truths: List['GroundTruthInput'] = Field(default_factory=list)
-
-    @validator('complexity', pre=True)
-    def validate_complexity(cls, v):
-        """Handle complexity enum conversion"""
-        if isinstance(v, str):
-            try:
-                return ComplexityQuery(v)
-            except ValueError:
-                # Try to match by replacing underscores
-                normalized = v.replace('_', '')
-                for comp in ComplexityQuery:
-                    if comp.value.replace('_', '').lower() == normalized.lower():
-                        return comp
-                raise ValueError(f"Invalid complexity: {v}")
-        return v
-
-    class Config:
-        from_attributes = True
-        use_enum_values = False
 
 
 class QueryCreate(BaseModel):
@@ -62,10 +35,6 @@ class QueryCreate(BaseModel):
     complexity: ComplexityQuery
     obsolete: bool = Field(default=False)
 
-    class Config:
-        from_attributes = True
-        use_enum_values = False
-
 
 class QueryUpdate(BaseModel):
     """Schema for updating a query"""
@@ -75,12 +44,9 @@ class QueryUpdate(BaseModel):
     complexity: Optional[ComplexityQuery] = None
     obsolete: Optional[bool] = None
 
-    class Config:
-        from_attributes = True
-
 
 class QueryResponse(BaseModel):
-    """Schema for query response"""
+    """Schema for query response with ground truths"""
     id: int  # Auto-increment ID
     position_id: int
     dataset_id: int
@@ -88,18 +54,19 @@ class QueryResponse(BaseModel):
     prompt: str
     device: Optional[str] = None
     customer: Optional[str] = None
-    complexity: ComplexityQuery
+    complexity: str  # Will be converted to string value
     obsolete: bool
     created_at: datetime
-    ground_truths: List[GroundTruthResponse] = []  # Add this line
-
+    ground_truths: List['GroundTruthResponse'] = []  # Add ground truths
 
     class Config:
         from_attributes = True
-        use_enum_values = True  # Convert enums to values in response
+        use_enum_values = True
 
 
 # Import for forward reference resolution
 from src.schemas.ground_truth import GroundTruthInput, GroundTruthResponse
-
 QueryInput.model_rebuild()
+QueryResponse.model_rebuild()
+
+# ============================================================================
