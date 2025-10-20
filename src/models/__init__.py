@@ -1,7 +1,7 @@
 # Import all models to ensure they're registered with SQLAlchemy
 # This must happen AFTER Base is defined but BEFORE any relationships are resolved
 from src.database import Base
-from src.models.blacklist import BlacklistChapter, blacklist_association
+from src.models.blacklist import BlacklistChapter
 from src.models.embedding import Embedding
 from src.models.enums import ChunkingType, ConfidenceLevel, ResearchType, ComplexityQuery, ExperimentStatus
 from src.models.ingestion_configuration import IngestionConfiguration
@@ -33,7 +33,7 @@ __all__ = [
     'ComplexityQuery',
     'ExperimentStatus',
     'BlacklistChapter',
-    'blacklist_association',
+  #  'blacklist_association',
     'Embedding',
     'Reranking',
     'Chunking',

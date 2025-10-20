@@ -16,10 +16,16 @@ class ChunkingType(str, enum.Enum):
     HIERARCHICAL = "Hierarchical"
 
 class ComplexityQuery(str, enum.Enum):
-    TEXTUAL_DESCRIPTION = "Textual_Description"
+    Textual_Description = "Textual_Description"
     IMAGE_ANALYSIS = "Image_Analysis"
     TABLE_ANALYSIS = "Table_Analysis"
     REASONING = "Reasoning"
+    ''''
+    Textual_Description = enum.auto(), # = "Textual_Description"
+    Image_Analysis = enum.auto(),
+    Table_Analysis = enum.auto(),
+    Reasoning = enum.auto()
+    '''
 
 class ExperimentStatus(str, enum.Enum):
     NOT_STARTED = "NOT_STARTED"

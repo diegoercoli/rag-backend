@@ -52,6 +52,7 @@ async def create_dataset(
             "dataset_name": "my_dataset",
             "queries": [
                 {
+                    "position_id": 1,
                     "prompt": "How do I...",
                     "device": "iPhone 14",
                     "customer": "premium_user",
