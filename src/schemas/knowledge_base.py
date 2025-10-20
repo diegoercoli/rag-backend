@@ -1,23 +1,24 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 
 
-class KnowledgeBaseCreate(BaseModel):
-    document_id: int
-    experiment_id: int
+class KnowledgeBaseBase(BaseModel):
+    name: str
 
-class KnowledgeBaseBulkCreate(BaseModel):
-    experiment_id: int
-    document_ids: List[int]
 
-class KnowledgeBaseResponse(BaseModel):
+class KnowledgeBaseCreate(KnowledgeBaseBase):
+    pass
+
+
+class KnowledgeBaseUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class KnowledgeBaseResponse(KnowledgeBaseBase):
     id: int
-    document_id: int
-    experiment_id: int
-    added_at: datetime
-    
+    created_at: datetime
+    updated_at: datetime
+
     class Config:
         from_attributes = True
-
-# ============================================================================

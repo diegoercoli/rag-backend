@@ -1,35 +1,20 @@
 from sqlalchemy import (
-    Column, Integer, String, Boolean, Float, DateTime, Date, Text, ForeignKey, Enum, Table
+    Column, Integer, String, Boolean, Float, DateTime, Date, Text, ForeignKey, Enum
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
 from src.database import Base
 
-# SQLAlchemy ORM model for knowledge bases
-# Define the association table (not an ORM class, just a Table)
-knowledge_base_association = Table(
-    'knowledge_base',
-    Base.metadata,
-    Column('id', Integer, primary_key=True),
-    Column('document_id', Integer, ForeignKey('retrieval_framework.document.id', ondelete='CASCADE'), nullable=False),
-    Column('experiment_id', Integer, ForeignKey('retrieval_framework.experiment.id', ondelete='CASCADE'), nullable=False),
-    Column('added_at', DateTime, server_default=func.now()),
-    schema='retrieval_framework'
-)
 
-
-'''
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_base"
     __table_args__ = {'schema': 'retrieval_framework'}
 
     id = Column(Integer, primary_key=True)
-    document_id = Column(Integer, ForeignKey('retrieval_framework.document.id', ondelete='CASCADE'), nullable=False)
-    experiment_id = Column(Integer, ForeignKey('retrieval_framework.experiment.id', ondelete='CASCADE'), nullable=False)
-    added_at = Column(DateTime, server_default=func.now())
+    name = Column(String(255), unique=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    document = relationship("Document", back_populates="knowledge_base")
-    experiment = relationship("Experiment", back_populates="knowledge_base")
-'''
-
+    # One-to-many relationship with documents
+    documents = relationship("Document", back_populates="knowledge_base")

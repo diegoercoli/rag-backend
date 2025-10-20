@@ -20,7 +20,6 @@ class Query(Base):
     obsolete = Column(Boolean, nullable=False, default=False)
     dataset_id = Column(Integer, ForeignKey('retrieval_framework.dataset.id', ondelete='RESTRICT'))
     complexity = Column(Enum(ComplexityQuery, name="complexity_query", schema="retrieval_framework"), nullable=False)
-
     dataset = relationship("Dataset", back_populates="queries")
     rankings = relationship("Ranking", back_populates="query")
     metrics = relationship("Metrics", back_populates="query")
