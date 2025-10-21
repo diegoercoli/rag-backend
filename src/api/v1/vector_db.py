@@ -29,6 +29,19 @@ async def create_provider(
     db: AsyncSession = Depends(get_db)
 ):
     """Create vector DB provider"""
+    # Check if provider with this name already exists
+    result = await db.execute(
+        select(VectorDBProvider).where(VectorDBProvider.name == provider.name)
+    )
+    existing_provider = result.scalar_one_or_none()
+    if existing_provider:
+        # Update port number if provider exists
+        existing_provider.port_number = provider.port_number
+        await db.commit()
+        await db.refresh(existing_provider)
+        return existing_provider
+
+    # Create new provider if it doesn't exist
     db_provider = VectorDBProvider(**provider.dict())
     db.add(db_provider)
     await db.commit()

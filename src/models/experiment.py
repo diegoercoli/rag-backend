@@ -22,6 +22,7 @@ experiment_document_association = Table(
 )
 
 
+
 # SQLAlchemy ORM model for experiments
 class Experiment(Base):
     __tablename__ = "experiment"
@@ -44,8 +45,6 @@ class Experiment(Base):
         nullable=False,
         server_default='NOT_STARTED'
     )
-
-    error_message = Column(Text, nullable=True)  # Add this for crash details
 
     configuration = relationship("Configuration")
     dataset = relationship("Dataset")

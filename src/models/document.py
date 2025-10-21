@@ -15,14 +15,15 @@ class Document(Base):
     id = Column(Integer, primary_key=True)
     version = Column(Float, nullable=False)
     type = Column(String(100), nullable=False)
-    current_hash = Column(String(64), unique=True, nullable=False)
+    hash = Column(String(64), unique=True, nullable=False)
     filename = Column(String(500), nullable=False)
     knowledge_base_id = Column(
         Integer,
         ForeignKey('retrieval_framework.knowledge_base.id', ondelete='SET NULL'),
         nullable=True
     )
-    
+    obsolete = Column(Boolean, nullable=False, default=False)
+    deleted = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -35,3 +36,5 @@ class Document(Base):
         back_populates="documents",
         lazy='select'
     )
+    def __repr__(self):
+        return f"<Document(id={self.id}, filename='{self.filename}', hash='{self.hash}')>"

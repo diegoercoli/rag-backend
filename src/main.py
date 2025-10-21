@@ -3,7 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.config import settings
 from src.api.v1 import experiments, configurations, queries, datasets, documents, embeddings, rankings, metrics, \
-    blacklist, chunking, chunks, preprocessing, query_enhancement, reranking, research_strategies, vector_db
+    blacklist, chunking, chunks, preprocessing, query_enhancement, reranking, research_strategies, vector_db, \
+    knowledge_base
 
 app = FastAPI(
     title=settings.api_title,
@@ -102,6 +103,11 @@ app.include_router(
     vector_db.router,
     prefix=f"{settings.api_prefix}/vector-db",
     tags=["vector-db"]
+)
+app.include_router(
+    knowledge_base.router,
+    prefix=f"{settings.api_prefix}/knowledge-bases",
+    tags=["knowledge-bases"]
 )
 
 @app.get("/")
